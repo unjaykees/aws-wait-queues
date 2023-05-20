@@ -73,6 +73,7 @@ class PrematureMessageHandler:
         :returns SQS SendMessage response
         """
         logger.info(f"This message originated in {self.message.origin_queue_arn}")
+
         if self.message.is_from_wait_queue():
             # this message already came from wait queue, allow for exception based retries
             # (wait queue is configured to support multiple retries)
@@ -87,9 +88,11 @@ class PrematureMessageHandler:
             f"Message (msg_id={self.message.message_id}) is premature "
             f"and will be re-routed to wait queue={wait_queue_name}.."
         )
+
         self.message.set_origin_queue_arn(self.message.event_source_arn)
         self.message.set_origin_message_id(self.message.message_id)
-        # this message will be relayed to wait queue for retries until its validation condition is true
+
+        # this message will be relayed to wait queue for retries until its condition check passes
         return self.sqs_client.send_message(
             QueueUrl=self.sqs_client.get_queue_url(QueueName=wait_queue_name)['QueueUrl'],
             MessageBody=self.message.body,
@@ -99,20 +102,22 @@ class PrematureMessageHandler:
 
 def record_handler(record: SQSRecord) -> Dict[str, str]:
     """ main handler for incoming SQS message
-    raises exception if conditional check evaluates to false
-
+    raises exception if conditional check fails
     :param record: instance of SQSRecord (sqs message)
-    :return: response object
+    :raises PrematureException
+    :returns: response object
     """
     msg_body = json_loads(record.body)
     delay = msg_body.get('delay', 0)
     create_timestamp = datetime.strptime(msg_body['createTimestamp'], '%Y-%m-%d %H:%M:%S')
     delayed_timestamp = create_timestamp + timedelta(seconds=delay)
     now = datetime.now()
+
     logger.info(
         f"Received message with: delay={delay}, create_timestamp={create_timestamp}; "
         f"delayed timestamp is: {delayed_timestamp}, now is: {now}"
     )
+
     if delay > 0 and delayed_timestamp > now:
         logger.warning(f"Message evaluation result: Message (msg_id={record.message_id}) is premature")
         msg_handler = PrematureMessageHandler(record)
