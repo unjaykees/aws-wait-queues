@@ -1,4 +1,9 @@
 # AWS Wait Queues
+This project is an example of implementing message wait queues that can be used
+for controlling velocity of message consumption off a queue.
+This example uses AWS SQS Queues and Lambda Function as solution components in AWS cloud.
+
+Read more: https://medium.com/@unjaykees/message-wait-queues-874738d066a6
 
 ## Prerequisites
 
